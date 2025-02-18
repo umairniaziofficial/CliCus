@@ -1,101 +1,116 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from 'react';
+import { useGitHubRepo } from '../hooks/useGitHubRepo';
+import { SearchBar } from '../components/SearchBar';
+import { FileList } from '../components/FileList';
+import { FileViewer } from '../components/FileViewer';
+import { BranchSelector } from '../components/BranchSelector';
+import { theme } from '../utils/theme';
+import { motion } from 'framer-motion';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [repoUrl, setRepoUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [loadingFile, setLoadingFile] = useState<string | null>(null);
+  const { 
+    structure, 
+    isLoading, 
+    error, 
+    fileContent,
+    branches,
+    selectedBranch,
+    setSelectedBranch,
+    fetchRepoStructure,
+    fetchFileContent
+  } = useGitHubRepo();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleSearch = () => {
+    fetchRepoStructure(repoUrl);
+    setSelectedFile(null);
+  };
+
+  const handleFileClick = async (path: string) => {
+    setSelectedFile(path);
+    setLoadingFile(path);
+    const urlParts = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (urlParts) {
+      try {
+        await fetchFileContent(urlParts[1], urlParts[2], path);
+      } finally {
+        setLoadingFile(null);
+      }
+    }
+  };
+
+  const handleBranchChange = (branch: string) => {
+    setSelectedBranch(branch);
+    if (repoUrl) {
+      fetchRepoStructure(repoUrl);
+    }
+  };
+
+  return (
+    <div className={`min-h-screen p-4 md:p-6 lg:p-8 ${theme.colors.surface} 
+                   bg-gradient-to-br from-slate-50 to-slate-100
+                   dark:from-slate-900 dark:to-slate-800`}>
+      <motion.h1 
+        className="text-4xl md:text-5xl lg:text-6xl font-bold text-center mb-8 
+                   bg-gradient-to-r from-white to-white bg-clip-text text-transparent"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        GitHub Structure Explorer
+      </motion.h1>
+
+      <div className="flex flex-col md:flex-row items-center gap-4 max-w-7xl mx-auto">
+        <div className="w-full md:flex-1">
+          <SearchBar
+            repoUrl={repoUrl}
+            onUrlChange={setRepoUrl}
+            onSearch={handleSearch}
+            isLoading={isLoading}
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <BranchSelector
+          branches={branches}
+          selectedBranch={selectedBranch}
+          onBranchChange={handleBranchChange}
+        />
+      </div>
+
+      {error && (
+        <motion.div 
+          className={`text-${error.status === 404 ? 'red-500' : 'yellow-500'} 
+                    my-4 text-center font-medium backdrop-blur-sm p-4 rounded-lg
+                    border border-${error.status === 404 ? 'red-200' : 'yellow-200'}`}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+          {error.message}
+        </motion.div>
+      )}
+      
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 w-full max-w-7xl mx-auto mt-8">
+        {structure && (
+          <div className="w-full lg:w-1/3 xl:w-1/4">
+            <FileList 
+              items={structure} 
+              onFileClick={handleFileClick}
+              selectedFile={selectedFile}
+              loadingFile={loadingFile}
+            />
+          </div>
+        )}
+        <div className="w-full lg:w-2/3 xl:w-3/4">
+          <FileViewer 
+            content={fileContent} 
+            filename={selectedFile} 
+            isLoading={loadingFile === selectedFile}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </div>
+      </div>
     </div>
   );
 }
